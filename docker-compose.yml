@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: cloudshare-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - cloudshare-network
+
+  cloudshareapi:
+    build:
+      context: ./cloudshareapi
+      dockerfile: Dockerfile
+    container_name: cloudshare-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/cloudshare
+      CLERK_ISSUER: ${CLERK_ISSUER}
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+    depends_on:
+      - mongodb
+    networks:
+      - cloudshare-network
+
+  cloudsharewebapp:
+    build:
+      context: ./cloudsharewebapp
+      dockerfile: Dockerfile
+      args:
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
+        VITE_RAZORPAY_KEY: ${VITE_RAZORPAY_KEY}
+    container_name: cloudshare-webapp
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - cloudshareapi
+    networks:
+      - cloudshare-network
+
+volumes:
+  mongo-data:
+
+networks:
+  cloudshare-network:
+    driver: bridge

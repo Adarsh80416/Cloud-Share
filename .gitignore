@@ -16,4 +16,6 @@ cloudsharewebapp/dist/
 # OS junk
 .DS_Store
 
+# Catch-all safety net
 .idea/
+**/.env
