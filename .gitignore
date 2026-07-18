@@ -1,0 +1,19 @@
+# Java / Spring Boot
+cloudshareapi/target/
+cloudshareapi/.idea/
+cloudshareapi/.env
+cloudshareapi/mvnw
+cloudshareapi/mvnw.cmd
+cloudshareapi/upload/
+*.class
+
+# Node / React
+cloudsharewebapp/node_modules/
+cloudsharewebapp/.env
+cloudsharewebapp/.idea/
+cloudsharewebapp/dist/
+
+# OS junk
+.DS_Store
+
+.idea/
