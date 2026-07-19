@@ -30,15 +30,19 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
 
     private final ClerkJwksProvider jwksProvider;
 
+    private void writeForbidden(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"error\": \"" + message.replace("\"", "'") + "\"}");
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
-        // For webhook endpoints, skip JWT validation and continue the filter chain
         if (request.getRequestURI().contains("/webhooks") ||
                 request.getRequestURI().contains("/public") ||
-                    request.getRequestURI().contains("/download") ||
-                        request.getRequestURI().contains("/health")) {
+                request.getRequestURI().contains("/download") ||
+                request.getRequestURI().contains("/health")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -46,7 +50,7 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Authorization header missing/invalid");
+            writeForbidden(response, "Authorization header missing/invalid");
             return;
         }
 
@@ -54,7 +58,7 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
             String token = authHeader.substring(7);
             String[] chunks = token.split("\\.");
             if (chunks.length < 3) {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid JWT token format");
+                writeForbidden(response, "Invalid JWT token format");
                 return;
             }
 
@@ -63,7 +67,7 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
             JsonNode headerNode = mapper.readTree(headerJson);
 
             if (!headerNode.has("kid")) {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Token header is missing kid");
+                writeForbidden(response, "Token header is missing kid");
                 return;
             }
 
@@ -71,7 +75,6 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
 
             PublicKey publicKey = jwksProvider.getPublicKey(kid);
 
-            //verify the token
             Claims claims = Jwts.parserBuilder()
                     .setSigningKey(publicKey)
                     .setAllowedClockSkewSeconds(60)
@@ -87,9 +90,7 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(authenticationToken);
             filterChain.doFilter(request, response);
         } catch (Exception e) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid JWT token: "+e.getMessage());
-            return;
+            writeForbidden(response, "Invalid JWT token: " + e.getMessage());
         }
-
     }
 }
