@@ -1,6 +1,7 @@
 package in.bushansirgur.cloudshareapi.config;
 
 import in.bushansirgur.cloudshareapi.security.ClerkJwtAuthFilter;
+import in.bushansirgur.cloudshareapi.security.RateLimitFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,6 +24,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final ClerkJwtAuthFilter clerkJwtAuthFilter;
+    private final RateLimitFilter rateLimitFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
@@ -30,7 +32,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/webhooks/**", "/files/public/**", "/files/download/**", "/health").permitAll().anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .addFilterBefore(clerkJwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(clerkJwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(rateLimitFilter, ClerkJwtAuthFilter.class);
         return httpSecurity.build();
     }
 

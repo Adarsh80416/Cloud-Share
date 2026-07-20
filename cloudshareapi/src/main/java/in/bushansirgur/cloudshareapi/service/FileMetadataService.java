@@ -33,6 +33,8 @@ public class FileMetadataService {
         ProfileDocument currentProfile = profileService.getCurrentProfile();
         List<FileMetadataDocument> savedFiles = new ArrayList<>();
 
+        // Fast, friendly pre-check so the user gets an immediate, clear error
+        // instead of failing partway through a batch upload.
         if (!userCreditsService.hasEnoughCredits(files.length)) {
             throw new RuntimeException("Not enough credits to upload files. Please purchase more credits");
         }
@@ -41,6 +43,14 @@ public class FileMetadataService {
         Files.createDirectories(uploadPath);
 
         for (MultipartFile file : files) {
+            // This is the real enforcement against race conditions: consumeCredit()
+            // performs an atomic Redis decrement per file, before the file is
+            // written or saved. If two requests race each other, only the
+            // ones with an actual credit available will succeed here.
+            if (userCreditsService.consumeCredit() == null) {
+                throw new RuntimeException("Not enough credits to upload remaining files. Please purchase more credits");
+            }
+
             String fileName = UUID.randomUUID()+"."+ StringUtils.getFilenameExtension(file.getOriginalFilename());
             Path targetLocation = uploadPath.resolve(fileName);
             Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
@@ -54,8 +64,6 @@ public class FileMetadataService {
                     .isPublic(false)
                     .uploadedAt(LocalDateTime.now())
                     .build();
-
-            userCreditsService.consumeCredit();
 
             savedFiles.add(fileMetadataRepository.save(fileMetadata));
         }

@@ -12,6 +12,15 @@ services:
     networks:
       - cloudshare-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: cloudshare-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - cloudshare-network
+
   cloudshareapi:
     build:
       context: ./cloudshareapi
@@ -22,6 +31,8 @@ services:
       - "8080:8080"
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/cloudshare
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
       CLERK_ISSUER: ${CLERK_ISSUER}
       CLERK_JWKS_URL: ${CLERK_JWKS_URL}
       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
@@ -29,6 +40,7 @@ services:
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
     depends_on:
       - mongodb
+      - redis
     networks:
       - cloudshare-network
 
@@ -39,6 +51,7 @@ services:
       args:
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
         VITE_RAZORPAY_KEY: ${VITE_RAZORPAY_KEY}
+
     container_name: cloudshare-webapp
     restart: unless-stopped
     ports:

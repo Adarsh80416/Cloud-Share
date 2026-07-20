@@ -11,6 +11,7 @@ public class UserCreditsService {
 
     private final UserCreditsRepository userCreditsRepository;
     private final ProfileService profileService;
+    private final RedisCreditsService redisCreditsService;
 
     public UserCredits createInitialCredits(String clerkId) {
         UserCredits userCredits = UserCredits.builder()
@@ -18,7 +19,9 @@ public class UserCreditsService {
                 .credits(5)
                 .plan("BASIC")
                 .build();
-        return userCreditsRepository.save(userCredits);
+        userCredits = userCreditsRepository.save(userCredits);
+        redisCreditsService.initializeCredits(clerkId, 5);
+        return userCredits;
     }
 
     public UserCredits getUserCredits(String clerkId) {
@@ -36,10 +39,23 @@ public class UserCreditsService {
         return userCredits.getCredits() >= requiredCredits;
     }
 
+    /**
+     * Atomically consumes one credit. Redis performs the actual atomic
+     * decrement (preventing race conditions when concurrent requests happen
+     * at the same time); MongoDB is then updated to match, since Mongo stays
+     * the durable, source-of-truth record for display elsewhere in the app.
+     * Returns null if there weren't enough credits (nothing is deducted).
+     */
     public UserCredits consumeCredit() {
-        UserCredits userCredits = getUserCredits();
+        String clerkId = profileService.getCurrentProfile().getClerkId();
 
-        if (userCredits.getCredits() <= 0) {
+        UserCredits userCredits = getUserCredits(clerkId);
+        // Safety net: backfills Redis for users who existed before Redis was
+        // introduced, or if Redis was ever flushed/restarted without persistence.
+        redisCreditsService.initializeCreditsIfAbsent(clerkId, userCredits.getCredits());
+
+        boolean consumed = redisCreditsService.tryConsumeCredit(clerkId);
+        if (!consumed) {
             return null;
         }
 
@@ -53,6 +69,9 @@ public class UserCreditsService {
 
         userCredits.setCredits(userCredits.getCredits() + creditsToAdd);
         userCredits.setPlan(plan);
-        return userCreditsRepository.save(userCredits);
+        userCredits = userCreditsRepository.save(userCredits);
+
+        redisCreditsService.addCredits(clerkId, creditsToAdd);
+        return userCredits;
     }
 }
